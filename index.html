@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Marvel Rivals Event Logger</title>
+    <style>
+      body {
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: monospace;
+        padding: 10px;
+      }
+      h1 {
+        color: #38bdf8;
+      }
+      pre {
+        background: #1e293b;
+        padding: 10px;
+        border-radius: 6px;
+        max-height: 500px;
+        overflow-y: scroll;
+      }
+      .ok {
+        color: #22c55e;
+      }
+      .warn {
+        color: #facc15;
+      }
+      .error {
+        color: #ef4444;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Marvel Rivals Event Logger ⚙️</h1>
+    <p>Status: <span id="status" class="warn">Waiting for game...</span></p>
+    
+    <div id="combat-stats" style="background: #1e293b; padding: 10px; border-radius: 6px; margin: 10px 0; display: none;">
+      <h3 style="color: #38bdf8; margin: 0 0 10px 0;">Combat Stats</h3>
+      <div style="display: flex; gap: 20px;">
+        <div><span style="color: #22c55e;">Kills: </span><span id="kills">0</span></div>
+        <div><span style="color: #ef4444;">Deaths: </span><span id="deaths">0</span></div>
+        <div><span style="color: #facc15;">Assists: </span><span id="assists">0</span></div>
+      </div>
+    </div>
+    
+    <pre id="log"></pre>
+    
+    <div style="margin-top: 10px; text-align: center;">
+      <button id="export-btn" style="background: #38bdf8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+        📊 Export Events as JSON
+      </button>
+    </div>
+
+    <script src="index.js"></script>
+  </body>
+</html>

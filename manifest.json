@@ -1,0 +1,55 @@
+{
+  "manifest_version": 1,
+  "type": "WebApp",
+
+  "meta": {
+    "name": "Marvel Rivals Event Logger",
+    "author": "Vasanth",
+    "version": "1.0.1",
+    "minimum-overwolf-version": "0.187.0",
+    "description": "Logs all Marvel Rivals Game Events for debugging and analytics.",
+    "dock_button_title": "Marvel Rivals GEP",
+    "icon": "icon.png",
+    "icon_gray": "icon_gray.png",
+    "launcher_icon": "icon.ico",
+    "window_icon": "icon.png"
+  },
+
+  "permissions": [
+    "GameInfo",
+    "GameEvents",
+    "IO"
+  ],
+
+  "data": {
+    "game_targeting": {
+      "type": "dedicated",
+      "game_ids": [248901]
+    },
+    "start_window": "index",
+    "windows": {
+      "index": {
+        "file": "index.html",
+        "show_in_taskbar": true,
+        "resizable": true,
+        "transparent": false,
+        "size": {
+          "width": 900,
+          "height": 600
+        },
+        "open_dev_tools": true
+      }
+    },
+    "launch_events": [
+      {
+        "event": "GameLaunch",
+        "event_data": { "game_ids": [248901] },
+        "start_minimized": false
+      }
+    ],
+    "developer": {
+      "enable_auto_refresh": true,
+      "reload_delay": 1000
+    }
+  }
+}
