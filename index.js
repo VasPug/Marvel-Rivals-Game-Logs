@@ -5,25 +5,37 @@ const combatStatsEl = document.getElementById("combat-stats");
 const killsEl = document.getElementById("kills");
 const deathsEl = document.getElementById("deaths");
 const assistsEl = document.getElementById("assists");
+const kdrEl = document.getElementById("kdr");
+const totalActionsEl = document.getElementById("total-actions");
 
 function log(type, msg, data) {
-  const timestamp = new Date().toISOString();
-  const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  const now = new Date();
+  const timestamp = now.toISOString();
+  const line = `[${now.toLocaleTimeString()}] ${msg}`;
   console.log(line, data || "");
+  
+  // Calculate relative timestamp (seconds from session start)
+  const relativeTime = sessionStartTime ? 
+    Math.round((now - sessionStartTime) / 1000) : 0;
   
   // Create event object
   const event = {
     timestamp: timestamp,
+    relative_time_seconds: relativeTime,
     type: type,
     message: msg,
     data: data || null
   };
   
-  // Store event for JSON export
-  eventLog.push(event);
-  
-  // Add to current batch
-  addEventToBatch(event);
+  // Only store events if logging is active (except for system messages)
+  if (isLoggingActive || type === 'warn' || type === 'error' || msg.includes('App loaded') || msg.includes('API available') || msg.includes('Marvel Rivals detected')) {
+    eventLog.push(event);
+    
+    // Add to current batch only if logging is active
+    if (isLoggingActive) {
+      addEventToBatch(event);
+    }
+  }
   
   const el = document.createElement("div");
   el.className = type;
@@ -42,6 +54,14 @@ function updateCombatStats() {
   deathsEl.textContent = combatStats.deaths;
   assistsEl.textContent = combatStats.assists;
   
+  // Calculate K/D ratio
+  const kdRatio = combatStats.deaths > 0 ? (combatStats.kills / combatStats.deaths).toFixed(2) : combatStats.kills.toFixed(2);
+  kdrEl.textContent = `K/D Ratio: ${kdRatio}`;
+  
+  // Calculate total actions
+  const totalActions = combatStats.kills + combatStats.deaths + combatStats.assists;
+  totalActionsEl.textContent = `Total Actions: ${totalActions}`;
+  
   // Show combat stats when we have any data
   if (combatStats.kills > 0 || combatStats.deaths > 0 || combatStats.assists > 0) {
     combatStatsEl.style.display = 'block';
@@ -52,6 +72,11 @@ function updateCombatStats() {
 function startBatchProcessing() {
   if (batchInterval) {
     clearInterval(batchInterval);
+  }
+  
+  // Set session start time for relative timestamps
+  if (!sessionStartTime) {
+    sessionStartTime = new Date();
   }
   
   // Process batches every 10 seconds
@@ -74,80 +99,122 @@ function processBatch() {
   const now = new Date();
   const batchDuration = Math.round((now - currentBatch.startTime) / 1000);
   
-  // Check for stat changes during this batch
-  const deathsGained = combatStats.deaths - currentBatch.deathCount;
-  const killsGained = combatStats.kills - currentBatch.killCount;
-  const assistsGained = combatStats.assists - currentBatch.assistCount;
+  // Get current stats from roster data to ensure accuracy
+  let currentKills = combatStats.kills;
+  let currentDeaths = combatStats.deaths;
+  let currentAssists = combatStats.assists;
   
-  // Add special events for stat changes
-  if (deathsGained > 0) {
-    currentBatch.playerDied = true;
-    currentBatch.events.push({
+  // Try to get the most recent stats from roster
+  overwolf.games.events.getInfo((result) => {
+    if (result.success && result.res && result.res.match_info) {
+      Object.keys(result.res.match_info).forEach(key => {
+        if (key.startsWith('roster_')) {
+          try {
+            const rosterData = typeof result.res.match_info[key] === 'string' 
+              ? JSON.parse(result.res.match_info[key]) 
+              : result.res.match_info[key];
+            
+            if (rosterData.is_local) {
+              currentKills = parseInt(rosterData.kills) || 0;
+              currentDeaths = parseInt(rosterData.deaths) || 0;
+              currentAssists = parseInt(rosterData.assists) || 0;
+            }
+          } catch (e) {
+            // Use existing stats if parsing fails
+          }
+        }
+      });
+    }
+    
+    // Calculate stat changes from the start of this batch
+    const deathsGained = currentDeaths - currentBatch.deathCount;
+    const killsGained = currentKills - currentBatch.killCount;
+    const assistsGained = currentAssists - currentBatch.assistCount;
+  
+    // Add special events for stat changes
+    if (deathsGained > 0) {
+      currentBatch.playerDied = true;
+      currentBatch.events.push({
+        timestamp: now.toISOString(),
+        type: "death_event",
+        message: `💀 PLAYER DIED ${deathsGained} time(s) in this batch`,
+        data: { deaths_gained: deathsGained, total_deaths: currentDeaths }
+      });
+    }
+    
+    if (killsGained > 0) {
+      currentBatch.playerKilled = true;
+      currentBatch.events.push({
+        timestamp: now.toISOString(),
+        type: "kill_event", 
+        message: `💀 PLAYER KILLED ${killsGained} enemy(ies) in this batch`,
+        data: { kills_gained: killsGained, total_kills: currentKills }
+      });
+    }
+    
+    if (assistsGained > 0) {
+      currentBatch.playerAssisted = true;
+      currentBatch.events.push({
+        timestamp: now.toISOString(),
+        type: "assist_event",
+        message: `🤝 PLAYER ASSISTED ${assistsGained} time(s) in this batch`,
+        data: { assists_gained: assistsGained, total_assists: currentAssists }
+      });
+    }
+  
+    // Calculate relative times for batch
+    const batchStartRelative = sessionStartTime ? 
+      Math.round((currentBatch.startTime - sessionStartTime) / 1000) : 0;
+    const batchEndRelative = sessionStartTime ? 
+      Math.round((now - sessionStartTime) / 1000) : 0;
+    
+    // Create batch summary
+    const batchSummary = {
+      batch_id: `batch_${Math.floor(now.getTime() / 10000)}`,
+      start_time: currentBatch.startTime.toISOString(),
+      end_time: now.toISOString(),
+      start_seconds: batchStartRelative,
+      end_seconds: batchEndRelative,
+      duration_seconds: batchDuration,
+      total_events: currentBatch.events.length,
+      player_actions: {
+        died: currentBatch.playerDied,
+        killed: currentBatch.playerKilled,
+        assisted: currentBatch.playerAssisted,
+        deaths_gained: deathsGained,
+        kills_gained: killsGained,
+        assists_gained: assistsGained
+      },
+      events: currentBatch.events
+    };
+    
+    // Log batch summary
+    log("ok", `📦 Batch Complete: ${batchDuration}s, ${currentBatch.events.length} events, Died:${currentBatch.playerDied} Killed:${currentBatch.playerKilled} Assisted:${currentBatch.playerAssisted}`);
+    
+    // Store batch in event log
+    eventLog.push({
       timestamp: now.toISOString(),
-      type: "death_event",
-      message: `💀 PLAYER DIED ${deathsGained} time(s) in this batch`,
-      data: { deaths_gained: deathsGained, total_deaths: combatStats.deaths }
+      type: "batch_summary",
+      message: `📦 10-Second Batch Summary`,
+      data: batchSummary
     });
-  }
-  
-  if (killsGained > 0) {
-    currentBatch.playerKilled = true;
-    currentBatch.events.push({
-      timestamp: now.toISOString(),
-      type: "kill_event", 
-      message: `💀 PLAYER KILLED ${killsGained} enemy(ies) in this batch`,
-      data: { kills_gained: killsGained, total_kills: combatStats.kills }
-    });
-  }
-  
-  if (assistsGained > 0) {
-    currentBatch.playerAssisted = true;
-    currentBatch.events.push({
-      timestamp: now.toISOString(),
-      type: "assist_event",
-      message: `🤝 PLAYER ASSISTED ${assistsGained} time(s) in this batch`,
-      data: { assists_gained: assistsGained, total_assists: combatStats.assists }
-    });
-  }
-  
-  // Create batch summary
-  const batchSummary = {
-    batch_id: `batch_${Math.floor(now.getTime() / 10000)}`,
-    start_time: currentBatch.startTime.toISOString(),
-    end_time: now.toISOString(),
-    duration_seconds: batchDuration,
-    total_events: currentBatch.events.length,
-    player_actions: {
-      died: currentBatch.playerDied,
-      killed: currentBatch.playerKilled,
-      assisted: currentBatch.playerAssisted,
-      deaths_gained: deathsGained,
-      kills_gained: killsGained,
-      assists_gained: assistsGained
-    },
-    events: currentBatch.events
-  };
-  
-  // Log batch summary
-  log("ok", `📦 Batch Complete: ${batchDuration}s, ${currentBatch.events.length} events, Died:${currentBatch.playerDied} Killed:${currentBatch.playerKilled} Assisted:${currentBatch.playerAssisted}`);
-  
-  // Store batch in event log
-  eventLog.push({
-    timestamp: now.toISOString(),
-    type: "batch_summary",
-    message: `📦 10-Second Batch Summary`,
-    data: batchSummary
+    
+    // Update combat stats with current values
+    combatStats.kills = currentKills;
+    combatStats.deaths = currentDeaths;
+    combatStats.assists = currentAssists;
+    updateCombatStats();
+    
+    // Reset for next batch
+    currentBatch.startTime = now;
+    currentBatch.events = [];
+    currentBatch.playerDied = false;
+    currentBatch.playerKilled = false;
+    currentBatch.playerAssisted = false;
+    currentBatch.deathCount = currentDeaths;
+    currentBatch.killCount = currentKills;
+    currentBatch.assistCount = currentAssists;
   });
-  
-  // Reset for next batch
-  currentBatch.startTime = now;
-  currentBatch.events = [];
-  currentBatch.playerDied = false;
-  currentBatch.playerKilled = false;
-  currentBatch.playerAssisted = false;
-  currentBatch.deathCount = combatStats.deaths;
-  currentBatch.killCount = combatStats.kills;
-  currentBatch.assistCount = combatStats.assists;
 }
 
 function addEventToBatch(event) {
@@ -173,9 +240,6 @@ function setRequiredFeatures() {
       
       // Set up event listeners after successful feature setup
       setupEventListeners();
-      
-      // Start batch processing for AI analysis
-      startBatchProcessing();
     } else {
       log("error", "❌ Failed to set features:", res);
       log("warn", "⚠️ Retrying setRequiredFeatures in 3 seconds...");
@@ -228,6 +292,12 @@ let combatStats = {
 
 // Event log storage for JSON export
 let eventLog = [];
+
+// Session timing for relative timestamps
+let sessionStartTime = null;
+
+// Logging control
+let isLoggingActive = false;
 
 // Batch processing for 10-second intervals
 let currentBatch = {
@@ -344,27 +414,34 @@ function handleInfoUpdates(data) {
             
             // Check if this is the local player
             if (rosterData.is_local) {
-              const newKills = rosterData.kills || 0;
-              const newDeaths = rosterData.deaths || 0;
-              const newAssists = rosterData.assists || 0;
+              const newKills = parseInt(rosterData.kills) || 0;
+              const newDeaths = parseInt(rosterData.deaths) || 0;
+              const newAssists = parseInt(rosterData.assists) || 0;
               
-              // Check if stats changed
-              if (newKills !== combatStats.kills) {
-                log("ok", `💀 KILL! Total kills: ${newKills}`, rosterData);
-                combatStats.kills = newKills;
-                updateCombatStats();
+              // Always update stats to current values
+              const oldKills = combatStats.kills;
+              const oldDeaths = combatStats.deaths;
+              const oldAssists = combatStats.assists;
+              
+              combatStats.kills = newKills;
+              combatStats.deaths = newDeaths;
+              combatStats.assists = newAssists;
+              updateCombatStats();
+              
+              // Check if stats changed and log the changes
+              if (newKills > oldKills) {
+                const killsGained = newKills - oldKills;
+                log("ok", `💀 KILL! Total kills: ${newKills} (+${killsGained})`, rosterData);
               }
               
-              if (newDeaths !== combatStats.deaths) {
-                log("error", `💀 DEATH! Total deaths: ${newDeaths}`, rosterData);
-                combatStats.deaths = newDeaths;
-                updateCombatStats();
+              if (newDeaths > oldDeaths) {
+                const deathsGained = newDeaths - oldDeaths;
+                log("error", `💀 DEATH! Total deaths: ${newDeaths} (+${deathsGained})`, rosterData);
               }
               
-              if (newAssists !== combatStats.assists) {
-                log("warn", `🤝 ASSIST! Total assists: ${newAssists}`, rosterData);
-                combatStats.assists = newAssists;
-                updateCombatStats();
+              if (newAssists > oldAssists) {
+                const assistsGained = newAssists - oldAssists;
+                log("warn", `🤝 ASSIST! Total assists: ${newAssists} (+${assistsGained})`, rosterData);
               }
             }
           } catch (e) {
@@ -407,7 +484,80 @@ function checkGameState() {
   });
 }
 
-// ====== 6️⃣ Export functionality ======
+// ====== 6️⃣ Logging Control Functions ======
+function startLogging() {
+  if (!isLoggingActive) {
+    isLoggingActive = true;
+    sessionStartTime = new Date();
+    
+    // Get current stats from roster data
+    updateCurrentStatsFromRoster();
+    
+    // Start batch processing
+    startBatchProcessing();
+    
+    // Update UI
+    document.getElementById('start-logging-btn').style.display = 'none';
+    document.getElementById('stop-logging-btn').style.display = 'inline-block';
+    setStatus("🟢 Logging Active - Events being tracked", "ok");
+    
+    log("ok", "🟢 LOGGING STARTED - All events will now be tracked and batched");
+  }
+}
+
+function updateCurrentStatsFromRoster() {
+  // Try to get current game info to update stats
+  overwolf.games.events.getInfo((result) => {
+    if (result.success && result.res && result.res.match_info) {
+      Object.keys(result.res.match_info).forEach(key => {
+        if (key.startsWith('roster_')) {
+          try {
+            const rosterData = typeof result.res.match_info[key] === 'string' 
+              ? JSON.parse(result.res.match_info[key]) 
+              : result.res.match_info[key];
+            
+            if (rosterData.is_local) {
+              combatStats.kills = rosterData.kills || 0;
+              combatStats.deaths = rosterData.deaths || 0;
+              combatStats.assists = rosterData.assists || 0;
+              updateCombatStats();
+              
+              log("ok", `📊 Current stats loaded: K:${combatStats.kills} D:${combatStats.deaths} A:${combatStats.assists}`);
+            }
+          } catch (e) {
+            log("error", "❌ Error parsing roster data on start:", e);
+          }
+        }
+      });
+    }
+  });
+}
+
+function stopLogging() {
+  if (isLoggingActive) {
+    isLoggingActive = false;
+    
+    // Stop batch processing
+    if (batchInterval) {
+      clearInterval(batchInterval);
+      batchInterval = null;
+    }
+    
+    // Process final batch if there are events
+    if (currentBatch.events.length > 0) {
+      processBatch();
+    }
+    
+    // Update UI
+    document.getElementById('start-logging-btn').style.display = 'inline-block';
+    document.getElementById('stop-logging-btn').style.display = 'none';
+    setStatus("🔴 Logging Stopped - Click Start to resume", "warn");
+    
+    log("warn", "🔴 LOGGING STOPPED - No new events will be tracked");
+  }
+}
+
+// ====== 7️⃣ Export functionality ======
 function exportEventsAsJSON() {
   // Filter out setup/debug events, keep only gameplay events
   const gameplayEvents = eventLog.filter(e => 
@@ -422,15 +572,53 @@ function exportEventsAsJSON() {
     e.message.includes('PLAYER ASSISTED')
   );
   
+  // Get final stats from current roster data
+  let finalStats = {
+    kills: combatStats.kills,
+    deaths: combatStats.deaths,
+    assists: combatStats.assists
+  };
+  
+  // Try to get the most recent stats from roster data
+  overwolf.games.events.getInfo((result) => {
+    if (result.success && result.res && result.res.match_info) {
+      Object.keys(result.res.match_info).forEach(key => {
+        if (key.startsWith('roster_')) {
+          try {
+            const rosterData = typeof result.res.match_info[key] === 'string' 
+              ? JSON.parse(result.res.match_info[key]) 
+              : result.res.match_info[key];
+            
+            if (rosterData.is_local) {
+              finalStats = {
+                kills: parseInt(rosterData.kills) || 0,
+                deaths: parseInt(rosterData.deaths) || 0,
+                assists: parseInt(rosterData.assists) || 0
+              };
+            }
+          } catch (e) {
+            console.log("Error parsing roster data for final stats:", e);
+          }
+        }
+      });
+    }
+    
+    // Proceed with export using the final stats
+    performExport(finalStats, gameplayEvents);
+  });
+  
+  // Fallback if getInfo fails
+  setTimeout(() => {
+    performExport(finalStats, gameplayEvents);
+  }, 1000);
+}
+
+function performExport(finalStats, gameplayEvents) {
   const exportData = {
     session_info: {
       timestamp: new Date().toISOString(),
       total_batches: eventLog.filter(e => e.type === 'batch_summary').length,
-      final_stats: {
-        kills: combatStats.kills,
-        deaths: combatStats.deaths,
-        assists: combatStats.assists
-      }
+      final_stats: finalStats
     },
     batch_summaries: eventLog.filter(e => e.type === 'batch_summary').map(e => e.data),
     key_events: gameplayEvents.filter(e => e.type !== 'batch_summary')
@@ -450,7 +638,7 @@ function exportEventsAsJSON() {
   URL.revokeObjectURL(url);
   
   const batchCount = eventLog.filter(e => e.type === 'batch_summary').length;
-  log("ok", `📊 Exported analysis data: ${batchCount} batches, ${combatStats.kills} kills, ${combatStats.deaths} deaths`);
+  log("ok", `📊 Exported analysis data: ${batchCount} batches, ${finalStats.kills} kills, ${finalStats.deaths} deaths`);
 }
 
 // ====== 5️⃣ On load ======
@@ -476,10 +664,19 @@ window.onload = () => {
   
   log("ok", "✅ Overwolf games.events API available");
   
-  // Set up export button
+  // Set up buttons
   const exportBtn = document.getElementById('export-btn');
+  const startBtn = document.getElementById('start-logging-btn');
+  const stopBtn = document.getElementById('stop-logging-btn');
+  
   if (exportBtn) {
     exportBtn.addEventListener('click', exportEventsAsJSON);
+  }
+  if (startBtn) {
+    startBtn.addEventListener('click', startLogging);
+  }
+  if (stopBtn) {
+    stopBtn.addEventListener('click', stopLogging);
   }
   
   // Start monitoring game state

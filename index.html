@@ -35,18 +35,36 @@
     <h1>Marvel Rivals Event Logger ⚙️</h1>
     <p>Status: <span id="status" class="warn">Waiting for game...</span></p>
     
-    <div id="combat-stats" style="background: #1e293b; padding: 10px; border-radius: 6px; margin: 10px 0; display: none;">
-      <h3 style="color: #38bdf8; margin: 0 0 10px 0;">Combat Stats</h3>
-      <div style="display: flex; gap: 20px;">
-        <div><span style="color: #22c55e;">Kills: </span><span id="kills">0</span></div>
-        <div><span style="color: #ef4444;">Deaths: </span><span id="deaths">0</span></div>
-        <div><span style="color: #facc15;">Assists: </span><span id="assists">0</span></div>
+    <div id="combat-stats" style="background: linear-gradient(135deg, #1e293b, #334155); padding: 20px; border-radius: 12px; margin: 15px 0; display: none; border: 2px solid #38bdf8; box-shadow: 0 4px 15px rgba(56, 189, 248, 0.2);">
+      <h2 style="color: #38bdf8; margin: 0 0 20px 0; text-align: center; font-size: 24px;">🎮 LIVE COMBAT STATS</h2>
+      <div style="display: flex; justify-content: space-around; align-items: center;">
+        <div style="text-align: center; background: rgba(34, 197, 94, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #22c55e; min-width: 120px;">
+          <div style="font-size: 32px; color: #22c55e; font-weight: bold;" id="kills">0</div>
+          <div style="color: #22c55e; font-size: 16px; margin-top: 5px;">KILLS</div>
+        </div>
+        <div style="text-align: center; background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #ef4444; min-width: 120px;">
+          <div style="font-size: 32px; color: #ef4444; font-weight: bold;" id="deaths">0</div>
+          <div style="color: #ef4444; font-size: 16px; margin-top: 5px;">DEATHS</div>
+        </div>
+        <div style="text-align: center; background: rgba(250, 204, 21, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #facc15; min-width: 120px;">
+          <div style="font-size: 32px; color: #facc15; font-weight: bold;" id="assists">0</div>
+          <div style="color: #facc15; font-size: 16px; margin-top: 5px;">ASSISTS</div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 15px; color: #94a3b8; font-size: 14px;">
+        <span id="kdr">K/D Ratio: 0.00</span> | <span id="total-actions">Total Actions: 0</span>
       </div>
     </div>
     
     <pre id="log"></pre>
     
     <div style="margin-top: 10px; text-align: center;">
+      <button id="start-logging-btn" style="background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 10px;">
+        ▶️ Start Logging
+      </button>
+      <button id="stop-logging-btn" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 10px; display: none;">
+        ⏹️ Stop Logging
+      </button>
       <button id="export-btn" style="background: #38bdf8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">
         📊 Export Events as JSON
       </button>
