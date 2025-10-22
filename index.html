@@ -29,11 +29,18 @@
       .error {
         color: #ef4444;
       }
+      #mic-status {
+        font-weight: bold;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.2);
+      }
     </style>
   </head>
   <body>
     <h1>Marvel Rivals Event Logger ⚙️</h1>
     <p>Status: <span id="status" class="warn">Waiting for game...</span></p>
+    <p>Microphone: <span id="mic-status" class="warn">Not recording</span></p>
     
     <div id="combat-stats" style="background: linear-gradient(135deg, #1e293b, #334155); padding: 20px; border-radius: 12px; margin: 15px 0; display: none; border: 2px solid #38bdf8; box-shadow: 0 4px 15px rgba(56, 189, 248, 0.2);">
       <h2 style="color: #38bdf8; margin: 0 0 20px 0; text-align: center; font-size: 24px;">🎮 LIVE COMBAT STATS</h2>

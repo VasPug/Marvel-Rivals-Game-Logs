@@ -18,7 +18,8 @@
   "permissions": [
     "GameInfo",
     "GameEvents",
-    "IO"
+    "IO",
+    "Microphone"
   ],
 
   "data": {

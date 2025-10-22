@@ -299,6 +299,12 @@ let sessionStartTime = null;
 // Logging control
 let isLoggingActive = false;
 
+// Microphone recording control
+let isMicRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let micStream = null;
+
 // Batch processing for 10-second intervals
 let currentBatch = {
   startTime: null,
@@ -496,6 +502,9 @@ function startLogging() {
     // Start batch processing
     startBatchProcessing();
     
+    // Start microphone recording
+    startMicrophoneRecording();
+    
     // Update UI
     document.getElementById('start-logging-btn').style.display = 'none';
     document.getElementById('stop-logging-btn').style.display = 'inline-block';
@@ -548,6 +557,9 @@ function stopLogging() {
       processBatch();
     }
     
+    // Stop microphone recording
+    stopMicrophoneRecording();
+    
     // Update UI
     document.getElementById('start-logging-btn').style.display = 'inline-block';
     document.getElementById('stop-logging-btn').style.display = 'none';
@@ -557,7 +569,121 @@ function stopLogging() {
   }
 }
 
-// ====== 7️⃣ Export functionality ======
+// ====== 7️⃣ Microphone Recording Functions ======
+async function startMicrophoneRecording() {
+  try {
+    // Request microphone access
+    micStream = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 44100
+      } 
+    });
+    
+    // Create MediaRecorder - use M4A for best compatibility and ML transcription
+    let mimeType = 'audio/mp4'; // M4A format
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      // Fallback to WebM if M4A not supported
+      mimeType = 'audio/webm';
+    }
+    
+    mediaRecorder = new MediaRecorder(micStream, {
+      mimeType: mimeType
+    });
+    
+    // Reset audio chunks
+    audioChunks = [];
+    
+    // Handle data available event
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data);
+      }
+    };
+    
+    // Handle recording stop event
+    mediaRecorder.onstop = () => {
+      saveAudioRecording();
+    };
+    
+    // Start recording
+    mediaRecorder.start(1000); // Collect data every second
+    isMicRecording = true;
+    
+    log("ok", "🎤 Microphone recording started");
+    updateMicStatus("🎤 Recording...", "ok");
+    
+  } catch (error) {
+    log("error", "❌ Failed to start microphone recording:", error);
+    if (error.name === 'NotAllowedError') {
+      updateMicStatus("❌ Mic Permission Denied", "error");
+      log("warn", "⚠️ Please allow microphone access to record audio");
+    } else if (error.name === 'NotFoundError') {
+      updateMicStatus("❌ No Microphone Found", "error");
+      log("warn", "⚠️ No microphone device found");
+    } else {
+      updateMicStatus("❌ Mic Error", "error");
+    }
+  }
+}
+
+function stopMicrophoneRecording() {
+  if (mediaRecorder && isMicRecording) {
+    mediaRecorder.stop();
+    isMicRecording = false;
+    
+    // Stop all tracks
+    if (micStream) {
+      micStream.getTracks().forEach(track => track.stop());
+      micStream = null;
+    }
+    
+    log("warn", "🎤 Microphone recording stopped");
+    updateMicStatus("🎤 Stopped", "warn");
+  }
+}
+
+function saveAudioRecording() {
+  if (audioChunks.length === 0) {
+    log("warn", "⚠️ No audio data to save");
+    return;
+  }
+  
+  // Create blob from audio chunks
+  const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+  
+  // Generate filename with same timestamp as logs
+  const timestamp = sessionStartTime ? sessionStartTime.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  const extension = mediaRecorder.mimeType.includes('mp4') ? 'm4a' : 'webm';
+  const filename = `marvel-rivals-mic-recording-${timestamp}.${extension}`;
+  
+  // Create download link
+  const url = URL.createObjectURL(audioBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  log("ok", `🎤 Audio recording saved as: ${filename}`);
+  updateMicStatus("🎤 Saved", "ok");
+  
+  // Clear audio chunks
+  audioChunks = [];
+}
+
+function updateMicStatus(text, className) {
+  const micStatusEl = document.getElementById('mic-status');
+  if (micStatusEl) {
+    micStatusEl.textContent = text;
+    micStatusEl.className = className;
+  }
+}
+
+// ====== 8️⃣ Export functionality ======
 function exportEventsAsJSON() {
   // Filter out setup/debug events, keep only gameplay events
   const gameplayEvents = eventLog.filter(e => 
@@ -682,4 +808,11 @@ window.onload = () => {
   // Start monitoring game state
   checkGameState();
   setInterval(checkGameState, 2000); // Check every 2 seconds
+  
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    if (isMicRecording) {
+      stopMicrophoneRecording();
+    }
+  });
 };
