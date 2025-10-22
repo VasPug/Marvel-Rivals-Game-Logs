@@ -683,7 +683,14 @@ function updateMicStatus(text, className) {
   }
 }
 
-// ====== 8️⃣ Export functionality ======
+// ====== 8️⃣ Clear functionality ======
+function clearAndReload() {
+  if (confirm("Are you sure you want to clear everything and reload the page? This will lose all current data.")) {
+    window.location.reload();
+  }
+}
+
+// ====== 9️⃣ Export functionality ======
 function exportEventsAsJSON() {
   // Filter out setup/debug events, keep only gameplay events
   const gameplayEvents = eventLog.filter(e => 
@@ -794,6 +801,7 @@ window.onload = () => {
   const exportBtn = document.getElementById('export-btn');
   const startBtn = document.getElementById('start-logging-btn');
   const stopBtn = document.getElementById('stop-logging-btn');
+  const clearBtn = document.getElementById('clear-btn');
   
   if (exportBtn) {
     exportBtn.addEventListener('click', exportEventsAsJSON);
@@ -803,6 +811,9 @@ window.onload = () => {
   }
   if (stopBtn) {
     stopBtn.addEventListener('click', stopLogging);
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', clearAndReload);
   }
   
   // Start monitoring game state

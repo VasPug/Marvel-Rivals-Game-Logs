@@ -72,9 +72,25 @@
       <button id="stop-logging-btn" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 10px; display: none;">
         ⏹️ Stop Logging
       </button>
-      <button id="export-btn" style="background: #38bdf8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+      <button id="export-btn" style="background: #38bdf8; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 10px;">
         📊 Export Events as JSON
       </button>
+      <button id="clear-btn" style="background: #f59e0b; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+        🔄 Clear & Reload
+      </button>
+    </div>
+    
+    <div style="margin-top: 20px; padding: 15px; background: #1e293b; border-radius: 8px; border-left: 4px solid #38bdf8;">
+      <h3 style="color: #38bdf8; margin: 0 0 10px 0; font-size: 16px;">📋 Instructions:</h3>
+      <ol style="color: #e2e8f0; margin: 0; padding-left: 20px; line-height: 1.6;">
+        <li><strong>Start Logging</strong> - Begin tracking your gaming session</li>
+        <li><strong>Stop Logging</strong> - End the current session (data is preserved)</li>
+        <li><strong>Export Events</strong> - Save your session data as JSON file</li>
+        <li><strong>Clear & Reload</strong> - Click this before starting a new session to ensure fresh start</li>
+      </ol>
+      <p style="color: #facc15; margin: 10px 0 0 0; font-size: 14px; font-weight: bold;">
+        ⚠️ Always click "Clear & Reload" before starting a new session to prevent audio sync issues!
+      </p>
     </div>
 
     <script src="index.js"></script>
