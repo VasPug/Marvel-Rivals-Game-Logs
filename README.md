@@ -181,16 +181,5 @@ The exported JSON is optimized for AI analysis:
 - **Audio timestamps** - Easy audio matching
 - **Event timeline** - Complete event history
 
-## 📝 License
 
-This project is for educational and analysis purposes. Please respect Marvel Rivals' Terms of Service and Overwolf's policies.
-
-## 🆘 Support
-
-For issues or questions:
-
-1. Check Overwolf console for errors
-2. Ensure Marvel Rivals is running
-3. Verify app permissions in Overwolf
-4. Check that you're in an actual match (not lobby)
 
