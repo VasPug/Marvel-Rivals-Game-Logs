@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Dota 2 Match Logger</title>
+    <style>
+      body {
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: monospace;
+        padding: 10px;
+      }
+      h1 {
+        color: #f97316;
+      }
+      pre {
+        background: #1e293b;
+        padding: 10px;
+        border-radius: 6px;
+        max-height: 500px;
+        overflow-y: scroll;
+      }
+      .ok {
+        color: #22c55e;
+      }
+      .warn {
+        color: #facc15;
+      }
+      .error {
+        color: #ef4444;
+      }
+      #mic-status {
+        font-weight: bold;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.2);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dota 2 Match Logger ⚙️</h1>
+    <p>Status: <span id="status" class="warn">Waiting for game...</span></p>
+    <p>Microphone: <span id="mic-status" class="warn">Not recording</span></p>
+
+    <div id="match-stats" style="background: linear-gradient(135deg, #1e293b, #334155); padding: 20px; border-radius: 12px; margin: 15px 0; display: none; border: 2px solid #f97316; box-shadow: 0 4px 15px rgba(249, 115, 22, 0.2);">
+      <h2 style="color: #f97316; margin: 0 0 20px 0; text-align: center; font-size: 24px;">🎮 LIVE MATCH DATA</h2>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+        <div style="text-align: center; background: rgba(34, 197, 94, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #22c55e;">
+          <div style="font-size: 32px; color: #22c55e; font-weight: bold;" id="kills">0</div>
+          <div style="color: #22c55e; font-size: 16px; margin-top: 5px;">KILLS</div>
+        </div>
+        <div style="text-align: center; background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #ef4444;">
+          <div style="font-size: 32px; color: #ef4444; font-weight: bold;" id="deaths">0</div>
+          <div style="color: #ef4444; font-size: 16px; margin-top: 5px;">DEATHS</div>
+        </div>
+        <div style="text-align: center; background: rgba(250, 204, 21, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #facc15;">
+          <div style="font-size: 32px; color: #facc15; font-weight: bold;" id="assists">0</div>
+          <div style="color: #facc15; font-size: 16px; margin-top: 5px;">ASSISTS</div>
+        </div>
+        <div style="text-align: center; background: rgba(56, 189, 248, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #38bdf8;">
+          <div style="font-size: 24px; color: #38bdf8; font-weight: bold;" id="gold">0</div>
+          <div style="color: #38bdf8; font-size: 14px; margin-top: 5px;">GOLD</div>
+        </div>
+        <div style="text-align: center; background: rgba(168, 85, 247, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #a855f7;">
+          <div style="font-size: 24px; color: #a855f7; font-weight: bold;" id="level">0</div>
+          <div style="color: #a855f7; font-size: 14px; margin-top: 5px;">LEVEL</div>
+        </div>
+        <div style="text-align: center; background: rgba(236, 72, 153, 0.1); padding: 15px; border-radius: 8px; border: 2px solid #ec4899;">
+          <div style="font-size: 24px; color: #ec4899; font-weight: bold;" id="last_hits">0</div>
+          <div style="color: #ec4899; font-size: 14px; margin-top: 5px;">LAST HITS</div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 15px; color: #94a3b8; font-size: 14px;">
+        <span id="kdr">K/D Ratio: 0.00</span> | <span id="gpm">GPM: 0</span> | <span id="xpm">XPM: 0</span>
+      </div>
+    </div>
+
+    <pre id="log"></pre>
+
+    <div style="margin-top: 10px; text-align: center;">
+      <button id="export-btn" style="background: #f97316; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 10px;">
+        📊 Export Match Data
+      </button>
+      <button id="clear-btn" style="background: #f59e0b; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">
+        🔄 Clear & Reload
+      </button>
+    </div>
+
+    <div style="margin-top: 20px; padding: 15px; background: #1e293b; border-radius: 8px; border-left: 4px solid #f97316;">
+      <h3 style="color: #f97316; margin: 0 0 10px 0; font-size: 16px;">📋 Instructions:</h3>
+      <ol style="color: #e2e8f0; margin: 0; padding-left: 20px; line-height: 1.6;">
+        <li><strong>Logging is automatic</strong> - Starts when a match begins and stops when it ends</li>
+        <li><strong>Export Match Data</strong> - Save your match data as JSON file</li>
+        <li><strong>Clear & Reload</strong> - Click this before starting a new session</li>
+      </ol>
+      <p style="color: #22c55e; margin: 10px 0 0 0; font-size: 14px; font-weight: bold;">
+        ✅ Logging automatically starts when a match begins and stops when it ends!
+      </p>
+    </div>
+
+    <script src="index.js"></script>
+  </body>
+</html>
