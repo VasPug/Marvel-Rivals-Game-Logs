@@ -14,32 +14,8 @@ const xpmEl = document.getElementById("xpm");
 
 function log(type, msg, data) {
   const now = new Date();
-  const timestamp = now.toISOString();
   const line = `[${now.toLocaleTimeString()}] ${msg}`;
   console.log(line, data || "");
-
-  // Calculate relative timestamp (seconds from session start)
-  const relativeTime = sessionStartTime ?
-    Math.round((now - sessionStartTime) / 1000) : 0;
-
-  // Create event object
-  const event = {
-    timestamp: timestamp,
-    relative_time_seconds: relativeTime,
-    type: type,
-    message: msg,
-    data: data || null
-  };
-
-  // Only store events if logging is active (except for system messages)
-  if (isLoggingActive || type === 'warn' || type === 'error' || msg.includes('App loaded') || msg.includes('API available') || msg.includes('Dota 2 detected')) {
-    eventLog.push(event);
-
-    // Add to current batch only if logging is active
-    if (isLoggingActive) {
-      addEventToBatch(event);
-    }
-  }
 
   const el = document.createElement("div");
   el.className = type;
@@ -54,148 +30,26 @@ function setStatus(text, cls = "warn") {
 }
 
 function updateMatchStats() {
-  killsEl.textContent = matchData.player.kills;
-  deathsEl.textContent = matchData.player.deaths;
-  assistsEl.textContent = matchData.player.assists;
-  goldEl.textContent = matchData.player.gold;
-  levelEl.textContent = matchData.player.level;
-  lastHitsEl.textContent = matchData.player.last_hits;
+  killsEl.textContent = matchData.players[0].kills;
+  deathsEl.textContent = matchData.players[0].deaths;
+  assistsEl.textContent = matchData.players[0].assists;
+  goldEl.textContent = matchData.players[0].gold;
+  levelEl.textContent = matchData.players[0].level;
+  lastHitsEl.textContent = matchData.players[0].last_hits;
 
   // Calculate K/D ratio
-  const kdRatio = matchData.player.deaths > 0 ?
-    (matchData.player.kills / matchData.player.deaths).toFixed(2) :
-    matchData.player.kills.toFixed(2);
+  const kdRatio = matchData.players[0].deaths > 0 ?
+    (matchData.players[0].kills / matchData.players[0].deaths).toFixed(2) :
+    matchData.players[0].kills.toFixed(2);
   kdrEl.textContent = `K/D Ratio: ${kdRatio}`;
 
   // Calculate GPM and XPM
-  gpmEl.textContent = `GPM: ${matchData.player.gold_per_min}`;
-  xpmEl.textContent = `XPM: ${matchData.player.xp_per_min}`;
+  gpmEl.textContent = `GPM: ${matchData.players[0].gold_per_min}`;
+  xpmEl.textContent = `XPM: ${matchData.players[0].xp_per_min}`;
 
   // Show match stats when we have any data
-  if (matchData.player.kills > 0 || matchData.player.deaths > 0 || matchData.player.level > 0) {
+  if (matchData.players[0].kills > 0 || matchData.players[0].deaths > 0 || matchData.players[0].level > 0) {
     matchStatsEl.style.display = 'block';
-  }
-}
-
-// ====== Batch Processing Functions ======
-function startBatchProcessing() {
-  if (batchInterval) {
-    clearInterval(batchInterval);
-  }
-
-  // Set session start time for relative timestamps
-  if (!sessionStartTime) {
-    sessionStartTime = new Date();
-  }
-
-  // Process batches every 10 seconds
-  batchInterval = setInterval(processBatch, 10000);
-
-  // Initialize first batch
-  currentBatch.startTime = new Date();
-  currentBatch.events = [];
-  currentBatch.matchData = JSON.parse(JSON.stringify(matchData));
-
-  log("warn", "🔄 Started 10-second batch processing");
-}
-
-function processBatch() {
-  const now = new Date();
-  const batchDuration = Math.round((now - currentBatch.startTime) / 1000);
-
-  // Calculate changes from the start of this batch
-  const killsGained = matchData.player.kills - currentBatch.matchData.player.kills;
-  const deathsGained = matchData.player.deaths - currentBatch.matchData.player.deaths;
-  const assistsGained = matchData.player.assists - currentBatch.matchData.player.assists;
-  const goldGained = matchData.player.gold - currentBatch.matchData.player.gold;
-  const levelGained = matchData.player.level - currentBatch.matchData.player.level;
-
-  // Add special events for stat changes
-  if (deathsGained > 0) {
-    currentBatch.events.push({
-      timestamp: now.toISOString(),
-      type: "death_event",
-      message: `💀 PLAYER DIED ${deathsGained} time(s) in this batch`,
-      data: { deaths_gained: deathsGained, total_deaths: matchData.player.deaths }
-    });
-  }
-
-  if (killsGained > 0) {
-    currentBatch.events.push({
-      timestamp: now.toISOString(),
-      type: "kill_event",
-      message: `💀 PLAYER KILLED ${killsGained} enemy(ies) in this batch`,
-      data: { kills_gained: killsGained, total_kills: matchData.player.kills }
-    });
-  }
-
-  if (assistsGained > 0) {
-    currentBatch.events.push({
-      timestamp: now.toISOString(),
-      type: "assist_event",
-      message: `🤝 PLAYER ASSISTED ${assistsGained} time(s) in this batch`,
-      data: { assists_gained: assistsGained, total_assists: matchData.player.assists }
-    });
-  }
-
-  if (levelGained > 0) {
-    currentBatch.events.push({
-      timestamp: now.toISOString(),
-      type: "level_up_event",
-      message: `⬆️ PLAYER LEVELED UP to level ${matchData.player.level}`,
-      data: { level_gained: levelGained, current_level: matchData.player.level }
-    });
-  }
-
-  // Calculate relative times for batch
-  const batchStartRelative = sessionStartTime ?
-    Math.round((currentBatch.startTime - sessionStartTime) / 1000) : 0;
-  const batchEndRelative = sessionStartTime ?
-    Math.round((now - sessionStartTime) / 1000) : 0;
-
-  // Create batch summary
-  const batchSummary = {
-    batch_id: `batch_${Math.floor(now.getTime() / 10000)}`,
-    start_time: currentBatch.startTime.toISOString(),
-    end_time: now.toISOString(),
-    start_seconds: batchStartRelative,
-    end_seconds: batchEndRelative,
-    duration_seconds: batchDuration,
-    total_events: currentBatch.events.length,
-    player_actions: {
-      died: deathsGained > 0,
-      killed: killsGained > 0,
-      assisted: assistsGained > 0,
-      leveled_up: levelGained > 0,
-      deaths_gained: deathsGained,
-      kills_gained: killsGained,
-      assists_gained: assistsGained,
-      gold_gained: goldGained,
-      level_gained: levelGained
-    },
-    events: currentBatch.events
-  };
-
-  // Log batch summary
-  log("ok", `📦 Batch Complete: ${batchDuration}s, ${currentBatch.events.length} events, K:${killsGained} D:${deathsGained} A:${assistsGained}`);
-
-  // Store batch in event log
-  eventLog.push({
-    timestamp: now.toISOString(),
-    type: "batch_summary",
-    message: `📦 10-Second Batch Summary`,
-    data: batchSummary
-  });
-
-  // Reset for next batch
-  currentBatch.startTime = now;
-  currentBatch.events = [];
-  currentBatch.matchData = JSON.parse(JSON.stringify(matchData));
-}
-
-function addEventToBatch(event) {
-  if (currentBatch.startTime) {
-    currentBatch.events.push(event);
   }
 }
 
@@ -292,50 +146,79 @@ function setupEventListeners() {
   }, 2000);
 }
 
-// Match data storage
+// Match data storage - follows DotaMatch schema
 let matchData = {
   match_id: null,
-  match_info: {},
-  player: {
-    match_id: null,
-    player_slot: null,
-    hero_id: null,
-    kills: 0,
-    deaths: 0,
-    assists: 0,
-    last_hits: 0,
-    denies: 0,
-    gold: 0,
-    gold_per_min: 0,
-    xp_per_min: 0,
-    level: 0,
-    hero_damage: 0,
-    hero_healing: 0,
-    tower_damage: 0,
-    item_0: null,
-    item_1: null,
-    item_2: null,
-    item_3: null,
-    item_4: null,
-    item_5: null,
-    backpack_0: null,
-    backpack_1: null,
-    backpack_2: null,
-  },
+  barracks_status_dire: 0,
+  barracks_status_radiant: 0,
   chat: [],
+  cluster: 0,
+  dire_score: 0,
+  draft_timings: [],
+  duration: 0,
+  first_blood_time: null,
+  game_mode: 0,
+  human_players: null,
+  lobby_type: 0,
   objectives: [],
   picks_bans: [],
-  purchase_log: [],
-  kill_log: [],
-  rune_log: [],
-  observer_log: [],
-  teamfights: []
+  radiant_score: 0,
+  radiant_win: null,
+  radiant_gold_adv: [],
+  radiant_xp_adv: [],
+  start_time: null,
+  teamfights: [],
+  tower_status_dire: 0,
+  tower_status_radiant: 0,
+  version: null,
+  players: [
+    {
+      match_id: null,
+      player_slot: null,
+      hero_id: null,
+      kills: 0,
+      deaths: 0,
+      assists: 0,
+      last_hits: 0,
+      denies: 0,
+      gold: 0,
+      gold_per_min: 0,
+      xp_per_min: 0,
+      level: 0,
+      hero_damage: 0,
+      hero_healing: 0,
+      tower_damage: 0,
+      item_0: null,
+      item_1: null,
+      item_2: null,
+      item_3: null,
+      item_4: null,
+      item_5: null,
+      backpack_0: null,
+      backpack_1: null,
+      backpack_2: null,
+      item_neutral: null,
+      kills_log: [],
+      purchase_log: [],
+      runes_log: [],
+      connection_log: [],
+      obs_log: [],
+      sen_log: [],
+      ability_upgrades_arr: [],
+      ability_uses: {},
+      damage: {},
+      damage_taken: {},
+      gold_reasons: {},
+      xp_reasons: {},
+      purchase: {},
+      killed: {},
+      item_uses: {}
+    }
+  ],
+  pauses: []
 };
 
-// Event log storage for JSON export
-let eventLog = [];
-
-// Session timing for relative timestamps
+// Session timing
 let sessionStartTime = null;
 
 // Logging control
@@ -347,16 +230,9 @@ let mediaRecorder = null;
 let audioChunks = [];
 let micStream = null;
 
-// Batch processing for 10-second intervals
-let currentBatch = {
-  startTime: null,
-  events: [],
-  matchData: null
-};
-
-let batchInterval = null;
-
 function handleNewEvents(data) {
+  if (!isLoggingActive) return;
+
   log("warn", "🔍 DEBUG: handleNewEvents called with:", data);
 
   // Try different possible data structures
@@ -375,6 +251,8 @@ function handleNewEvents(data) {
 
   log("ok", `📋 Found ${events.length} events`);
 
+  const currentTime = sessionStartTime ? Math.round((new Date() - sessionStartTime) / 1000) : 0;
+
   events.forEach((event, index) => {
     log("warn", `📝 Event ${index + 1}:`, {
       name: event.name,
@@ -392,21 +270,31 @@ function handleNewEvents(data) {
         log("ok", "🏁 MATCH DETECTED/CHANGED!", event.data);
         if (event.data && event.data.match_id) {
           matchData.match_id = event.data.match_id;
+          matchData.players[0].match_id = event.data.match_id;
+        }
+        if (!matchData.start_time) {
+          matchData.start_time = Math.floor(Date.now() / 1000);
         }
         break;
 
       case 'match_ended':
         log("ok", "🏁 MATCH ENDED!", event.data);
+        if (event.data) {
+          matchData.duration = currentTime;
+          if (event.data.win !== undefined) {
+            matchData.radiant_win = event.data.win;
+          }
+        }
         break;
 
       case 'kill':
         if (event.data) {
-          matchData.player.kills = parseInt(event.data) || matchData.player.kills;
-          log("ok", `💀 KILL! Total kills: ${matchData.player.kills}`, event.data);
+          matchData.players[0].kills = parseInt(event.data) || matchData.players[0].kills;
+          log("ok", `💀 KILL! Total kills: ${matchData.players[0].kills}`, event.data);
 
           // Add to kill log
-          matchData.kill_log.push({
-            time: Math.round((new Date() - sessionStartTime) / 1000),
+          matchData.players[0].kills_log.push({
+            time: currentTime,
             key: event.data.toString()
           });
 
@@ -416,52 +304,52 @@ function handleNewEvents(data) {
 
       case 'death':
         if (event.data) {
-          matchData.player.deaths = parseInt(event.data) || matchData.player.deaths;
-          log("error", `💀 DEATH! Total deaths: ${matchData.player.deaths}`, event.data);
+          matchData.players[0].deaths = parseInt(event.data) || matchData.players[0].deaths;
+          log("error", `💀 DEATH! Total deaths: ${matchData.players[0].deaths}`, event.data);
           updateMatchStats();
         }
         break;
 
       case 'assist':
         if (event.data) {
-          matchData.player.assists = parseInt(event.data) || matchData.player.assists;
-          log("warn", `🤝 ASSIST! Total assists: ${matchData.player.assists}`, event.data);
+          matchData.players[0].assists = parseInt(event.data) || matchData.players[0].assists;
+          log("warn", `🤝 ASSIST! Total assists: ${matchData.players[0].assists}`, event.data);
           updateMatchStats();
         }
         break;
 
       case 'cs':
         if (event.data) {
-          matchData.player.last_hits = parseInt(event.data) || matchData.player.last_hits;
+          matchData.players[0].last_hits = parseInt(event.data) || matchData.players[0].last_hits;
           updateMatchStats();
         }
         break;
 
       case 'gold':
         if (event.data) {
-          matchData.player.gold = parseInt(event.data) || matchData.player.gold;
+          matchData.players[0].gold = parseInt(event.data) || matchData.players[0].gold;
           updateMatchStats();
         }
         break;
 
       case 'gpm':
         if (event.data) {
-          matchData.player.gold_per_min = parseInt(event.data) || matchData.player.gold_per_min;
+          matchData.players[0].gold_per_min = parseInt(event.data) || matchData.players[0].gold_per_min;
           updateMatchStats();
         }
         break;
 
       case 'xpm':
         if (event.data) {
-          matchData.player.xp_per_min = parseInt(event.data) || matchData.player.xp_per_min;
+          matchData.players[0].xp_per_min = parseInt(event.data) || matchData.players[0].xp_per_min;
           updateMatchStats();
         }
         break;
 
       case 'hero_leveled_up':
         if (event.data) {
-          matchData.player.level = parseInt(event.data) || matchData.player.level;
-          log("ok", `⬆️ LEVEL UP! Now level ${matchData.player.level}`, event.data);
+          matchData.players[0].level = parseInt(event.data) || matchData.players[0].level;
+          log("ok", `⬆️ LEVEL UP! Now level ${matchData.players[0].level}`, event.data);
           updateMatchStats();
         }
         break;
@@ -470,11 +358,21 @@ function handleNewEvents(data) {
       case 'hero_item_used':
       case 'hero_item_consumed':
         log("ok", `🎒 ITEM EVENT: ${event.name}`, event.data);
-        if (event.data && sessionStartTime) {
-          matchData.purchase_log.push({
-            time: Math.round((new Date() - sessionStartTime) / 1000),
+        if (event.data) {
+          matchData.players[0].purchase_log.push({
+            time: currentTime,
             key: event.data.toString()
           });
+        }
+        break;
+
+      case 'hero_ability_used':
+        if (event.data) {
+          const abilityKey = event.data.toString();
+          if (!matchData.players[0].ability_uses[abilityKey]) {
+            matchData.players[0].ability_uses[abilityKey] = 0;
+          }
+          matchData.players[0].ability_uses[abilityKey]++;
         }
         break;
 
@@ -485,13 +383,15 @@ function handleNewEvents(data) {
 }
 
 function updateMatchDataFromInfo(info) {
+  if (!isLoggingActive) return;
+
   // Update player data from info updates
   if (info.me) {
     if (info.me.hero) {
-      matchData.player.hero_id = info.me.hero;
+      matchData.players[0].hero_id = info.me.hero;
     }
     if (info.me.level) {
-      matchData.player.level = parseInt(info.me.level) || matchData.player.level;
+      matchData.players[0].level = parseInt(info.me.level) || matchData.players[0].level;
       updateMatchStats();
     }
   }
@@ -499,16 +399,17 @@ function updateMatchDataFromInfo(info) {
   if (info.game) {
     if (info.game.match_id) {
       matchData.match_id = info.game.match_id;
+      matchData.players[0].match_id = info.game.match_id;
     }
-  }
-
-  // Store complete match info
-  if (info.match_info) {
-    matchData.match_info = { ...matchData.match_info, ...info.match_info };
+    if (info.game.game_mode) {
+      matchData.game_mode = parseInt(info.game.game_mode) || matchData.game_mode;
+    }
   }
 }
 
 function handleInfoUpdates(data) {
+  if (!isLoggingActive) return;
+
   if (data && data.info) {
     log("warn", "📊 Info Update", data.info);
 
@@ -549,9 +450,6 @@ function startLogging() {
     isLoggingActive = true;
     sessionStartTime = new Date();
 
-    // Start batch processing
-    startBatchProcessing();
-
     // Start microphone recording
     startMicrophoneRecording();
 
@@ -560,7 +458,7 @@ function startLogging() {
     document.getElementById('stop-logging-btn').style.display = 'inline-block';
     setStatus("🟢 Logging Active - Match data being tracked", "ok");
 
-    log("ok", "🟢 LOGGING STARTED - All match data will now be tracked and batched");
+    log("ok", "🟢 LOGGING STARTED - All match data will now be tracked");
   }
 }
 
@@ -568,15 +466,9 @@ function stopLogging() {
   if (isLoggingActive) {
     isLoggingActive = false;
 
-    // Stop batch processing
-    if (batchInterval) {
-      clearInterval(batchInterval);
-      batchInterval = null;
-    }
-
-    // Process final batch if there are events
-    if (currentBatch.events.length > 0) {
-      processBatch();
+    // Calculate final duration
+    if (sessionStartTime) {
+      matchData.duration = Math.round((new Date() - sessionStartTime) / 1000);
     }
 
     // Stop microphone recording
@@ -675,10 +567,11 @@ function saveAudioRecording() {
   // Create blob from audio chunks
   const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
 
-  // Generate filename with same timestamp as logs
+  // Generate filename with match ID
+  const matchId = matchData.match_id || 'unknown';
   const timestamp = sessionStartTime ? sessionStartTime.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
   const extension = mediaRecorder.mimeType.includes('mp4') ? 'm4a' : 'webm';
-  const filename = `dota2-mic-recording-${timestamp}.${extension}`;
+  const filename = `dota2-match-${matchId}-audio-${timestamp}.${extension}`;
 
   // Create download link
   const url = URL.createObjectURL(audioBlob);
@@ -714,28 +607,8 @@ function clearAndReload() {
 
 // ====== 9️⃣ Export functionality ======
 function exportMatchData() {
-  // Filter out setup/debug events, keep only gameplay events
-  const gameplayEvents = eventLog.filter(e =>
-    e.type === 'batch_summary' ||
-    e.message.includes('KILL') ||
-    e.message.includes('DEATH') ||
-    e.message.includes('ASSIST') ||
-    e.message.includes('MATCH') ||
-    e.message.includes('LEVEL')
-  );
-
-  const exportData = {
-    session_info: {
-      timestamp: new Date().toISOString(),
-      total_batches: eventLog.filter(e => e.type === 'batch_summary').length,
-      match_id: matchData.match_id
-    },
-    match: matchData,
-    batch_summaries: eventLog.filter(e => e.type === 'batch_summary').map(e => e.data),
-    key_events: gameplayEvents.filter(e => e.type !== 'batch_summary')
-  };
-
-  const jsonString = JSON.stringify(exportData, null, 2);
+  // Export in DotaMatch format
+  const jsonString = JSON.stringify(matchData, null, 2);
 
   // Create and download file
   const blob = new Blob([jsonString], { type: 'application/json' });
@@ -749,8 +622,7 @@ function exportMatchData() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  const batchCount = eventLog.filter(e => e.type === 'batch_summary').length;
-  log("ok", `📊 Exported match data: ${batchCount} batches, Match ID: ${matchId}`);
+  log("ok", `📊 Exported match data: Match ID ${matchId}, Duration: ${matchData.duration}s`);
 }
 
 // ====== 5️⃣ On load ======
