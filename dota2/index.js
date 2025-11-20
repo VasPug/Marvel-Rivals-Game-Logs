@@ -1,3 +1,4 @@
+// ====== CONSTANTS & DOM REFERENCES ======
 const DOTA2_GAME_ID = 7314;
 const logEl = document.getElementById("log");
 const statusEl = document.getElementById("status");
@@ -12,140 +13,7 @@ const kdrEl = document.getElementById("kdr");
 const gpmEl = document.getElementById("gpm");
 const xpmEl = document.getElementById("xpm");
 
-function log(type, msg, data) {
-  const now = new Date();
-  const line = `[${now.toLocaleTimeString()}] ${msg}`;
-  console.log(line, data || "");
-
-  const el = document.createElement("div");
-  el.className = type;
-  el.textContent = line + (data ? " " + JSON.stringify(data) : "");
-  logEl.appendChild(el);
-  logEl.scrollTop = logEl.scrollHeight;
-}
-
-function setStatus(text, cls = "warn") {
-  statusEl.textContent = text;
-  statusEl.className = cls;
-}
-
-function updateMatchStats() {
-  killsEl.textContent = matchData.players[0].kills;
-  deathsEl.textContent = matchData.players[0].deaths;
-  assistsEl.textContent = matchData.players[0].assists;
-  goldEl.textContent = matchData.players[0].gold;
-  levelEl.textContent = matchData.players[0].level;
-  lastHitsEl.textContent = matchData.players[0].last_hits;
-
-  // Calculate K/D ratio
-  const kdRatio = matchData.players[0].deaths > 0 ?
-    (matchData.players[0].kills / matchData.players[0].deaths).toFixed(2) :
-    matchData.players[0].kills.toFixed(2);
-  kdrEl.textContent = `K/D Ratio: ${kdRatio}`;
-
-  // Calculate GPM and XPM
-  gpmEl.textContent = `GPM: ${matchData.players[0].gold_per_min}`;
-  xpmEl.textContent = `XPM: ${matchData.players[0].xp_per_min}`;
-
-  // Show match stats when we have any data
-  if (matchData.players[0].kills > 0 || matchData.players[0].deaths > 0 || matchData.players[0].level > 0) {
-    matchStatsEl.style.display = 'block';
-  }
-}
-
-// ====== 1️⃣ Set required features ======
-function setRequiredFeatures() {
-  // Dota 2 GEP features based on Overwolf documentation
-  const features = [
-    "gep_internal",
-    "game_state_changed",
-    "match_state_changed",
-    "match_detected",
-    "daytime_changed",
-    "clock_time_changed",
-    "ward_purchase_cooldown_changed",
-    "match_ended",
-    "kill",
-    "assist",
-    "death",
-    "cs",
-    "xpm",
-    "gpm",
-    "gold",
-    "hero_leveled_up",
-    "hero_respawned",
-    "hero_buyback_info_changed",
-    "hero_boughtback",
-    "hero_health_mana_info",
-    "hero_status_effect_changed",
-    "hero_attributes_skilled",
-    "hero_ability_skilled",
-    "hero_ability_used",
-    "hero_ability_changed",
-    "hero_item_changed",
-    "hero_item_used",
-    "hero_item_consumed",
-    "hero_item_charged",
-    "match_info",
-    "roster",
-    "party",
-    "error",
-    "hero_pool",
-    "me",
-    "game"
-  ];
-
-  log("warn", "🔧 Setting required features...", features);
-
-  overwolf.games.events.setRequiredFeatures(features, (res) => {
-    if (res.success) {
-      log("ok", "✅ Features set successfully:", res.supportedFeatures);
-      setStatus("Connected to Dota 2", "ok");
-
-      // Set up event listeners after successful feature setup
-      setupEventListeners();
-    } else {
-      log("error", "❌ Failed to set features:", res);
-      log("warn", "⚠️ Retrying setRequiredFeatures in 3 seconds...");
-      setStatus("Retrying feature setup...", "warn");
-      setTimeout(setRequiredFeatures, 3000);
-    }
-  });
-}
-
-// ====== 4️⃣ Setup event listeners ======
-function setupEventListeners() {
-  log("warn", "🎧 Setting up event listeners...");
-
-  // Remove existing listeners to avoid duplicates
-  overwolf.games.events.onNewEvents.removeListener(handleNewEvents);
-  overwolf.games.events.onInfoUpdates2.removeListener(handleInfoUpdates);
-
-  // Add new listeners
-  overwolf.games.events.onNewEvents.addListener(handleNewEvents);
-  overwolf.games.events.onInfoUpdates2.addListener(handleInfoUpdates);
-
-  log("ok", "✅ Event listeners set up successfully");
-
-  // Test if listeners are working
-  setTimeout(() => {
-    log("warn", "🧪 Testing event listeners...");
-    log("warn", "If you see this message, the app is running but no game events are being received yet.");
-    log("warn", "Try starting a match in Dota 2 to see events!");
-  }, 5000);
-
-  // Check for info updates more frequently
-  setInterval(() => {
-    // Try to get current game info
-    overwolf.games.events.getInfo((result) => {
-      if (result.success && result.res) {
-        // Update match data from current info
-        updateMatchDataFromInfo(result.res);
-      }
-    });
-  }, 2000);
-}
-
+// ====== STATE VARIABLES ======
 // Match data storage - follows DotaMatch schema
 let matchData = {
   match_id: null,
@@ -218,20 +86,304 @@ let matchData = {
   pauses: []
 };
 
-// Session timing
+// Session and logging state
 let sessionStartTime = null;
-
-// Logging control
 let isLoggingActive = false;
+let isGameRunning = false;
 
-// Microphone recording control
+// Microphone recording state
 let isMicRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
 let micStream = null;
 
-function handleNewEvents(data) {
+// ====== UTILITY FUNCTIONS ======
+function log(type, msg, data) {
+  const now = new Date();
+  const line = `[${now.toLocaleTimeString()}] ${msg}`;
+  console.log(line, data || "");
+
+  const el = document.createElement("div");
+  el.className = type;
+  el.textContent = line + (data ? " " + JSON.stringify(data) : "");
+  logEl.appendChild(el);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(text, cls = "warn") {
+  statusEl.textContent = text;
+  statusEl.className = cls;
+}
+
+function updateMatchStats() {
+  killsEl.textContent = matchData.players[0].kills;
+  deathsEl.textContent = matchData.players[0].deaths;
+  assistsEl.textContent = matchData.players[0].assists;
+  goldEl.textContent = matchData.players[0].gold;
+  levelEl.textContent = matchData.players[0].level;
+  lastHitsEl.textContent = matchData.players[0].last_hits;
+
+  // Calculate K/D ratio
+  const kdRatio = matchData.players[0].deaths > 0 ?
+    (matchData.players[0].kills / matchData.players[0].deaths).toFixed(2) :
+    matchData.players[0].kills.toFixed(2);
+  kdrEl.textContent = `K/D Ratio: ${kdRatio}`;
+
+  // Calculate GPM and XPM
+  gpmEl.textContent = `GPM: ${matchData.players[0].gold_per_min}`;
+  xpmEl.textContent = `XPM: ${matchData.players[0].xp_per_min}`;
+
+  // Show match stats when we have any data
+  if (matchData.players[0].kills > 0 || matchData.players[0].deaths > 0 || matchData.players[0].level > 0) {
+    matchStatsEl.style.display = 'block';
+  }
+}
+
+function updateMicStatus(text, className) {
+  const micStatusEl = document.getElementById('mic-status');
+  if (micStatusEl) {
+    micStatusEl.textContent = text;
+    micStatusEl.className = className;
+  }
+}
+
+// ====== DATA MANAGEMENT ======
+function resetMatchData() {
+  matchData = {
+    match_id: null,
+    barracks_status_dire: 0,
+    barracks_status_radiant: 0,
+    chat: [],
+    cluster: 0,
+    dire_score: 0,
+    draft_timings: [],
+    duration: 0,
+    first_blood_time: null,
+    game_mode: 0,
+    human_players: null,
+    lobby_type: 0,
+    objectives: [],
+    picks_bans: [],
+    radiant_score: 0,
+    radiant_win: null,
+    radiant_gold_adv: [],
+    radiant_xp_adv: [],
+    start_time: null,
+    teamfights: [],
+    tower_status_dire: 0,
+    tower_status_radiant: 0,
+    version: null,
+    players: [
+      {
+        match_id: null,
+        player_slot: null,
+        hero_id: null,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        last_hits: 0,
+        denies: 0,
+        gold: 0,
+        gold_per_min: 0,
+        xp_per_min: 0,
+        level: 0,
+        hero_damage: 0,
+        hero_healing: 0,
+        tower_damage: 0,
+        item_0: null,
+        item_1: null,
+        item_2: null,
+        item_3: null,
+        item_4: null,
+        item_5: null,
+        backpack_0: null,
+        backpack_1: null,
+        backpack_2: null,
+        item_neutral: null,
+        kills_log: [],
+        purchase_log: [],
+        runes_log: [],
+        connection_log: [],
+        obs_log: [],
+        sen_log: [],
+        ability_upgrades_arr: [],
+        ability_uses: {},
+        damage: {},
+        damage_taken: {},
+        gold_reasons: {},
+        xp_reasons: {},
+        purchase: {},
+        killed: {},
+        item_uses: {}
+      }
+    ],
+    pauses: []
+  };
+  
+  // Reset session timing
+  sessionStartTime = null;
+  
+  // Reset UI stats and hide match stats panel
+  updateMatchStats();
+  if (matchStatsEl) {
+    matchStatsEl.style.display = 'none';
+  }
+  
+  log("ok", "🔄 Match data reset - Fresh start for new game");
+}
+
+function updateMatchDataFromInfo(info) {
   if (!isLoggingActive) return;
+
+  // Update player data from info updates
+  if (info.me) {
+    if (info.me.hero) {
+      matchData.players[0].hero_id = info.me.hero;
+    }
+    if (info.me.level) {
+      matchData.players[0].level = parseInt(info.me.level) || matchData.players[0].level;
+      updateMatchStats();
+    }
+  }
+
+  if (info.game) {
+    if (info.game.match_id) {
+      matchData.match_id = info.game.match_id;
+      matchData.players[0].match_id = info.game.match_id;
+    }
+    if (info.game.game_mode) {
+      matchData.game_mode = parseInt(info.game.game_mode) || matchData.game_mode;
+    }
+  }
+}
+
+// ====== GAME STATE MONITORING ======
+function checkGameState() {
+  overwolf.games.getRunningGameInfo((info) => {
+    // Convert both to numbers for comparison (handles string vs number mismatch)
+
+    const gameRunning = info && info.isRunning && info.title === "Dota 2";
+
+    if (gameRunning && !isGameRunning) {
+      // Game just started
+      log("ok", "🎮 Dota 2 detected. Setting features...");
+      setStatus("Dota 2 detected!", "ok");
+      isGameRunning = true;
+      setRequiredFeatures();
+    } else if (!gameRunning && isGameRunning) {
+      // Game just stopped
+      log("warn", "🎮 Dota 2 stopped");
+      setStatus("Dota 2 stopped", "warn");
+      isGameRunning = false;
+    } else if (!gameRunning && !isGameRunning) {
+      // Still waiting for game - only log once on first check
+      if (statusEl.textContent !== "Waiting for Dota 2...") {
+        log("warn", "⌛ Waiting for Dota 2 to start...");
+        setStatus("Waiting for Dota 2...", "warn");
+      }
+    }
+  });
+}
+
+function setRequiredFeatures() {
+  // Dota 2 GEP features based on Overwolf documentation
+  const features = [
+    "gep_internal",
+    "game_state",
+    "game_state_changed",
+    "match_state_changed",
+    "match_detected",
+    "daytime_changed",
+    "clock_time_changed",
+    "ward_purchase_cooldown_changed",
+    "match_ended",
+    "kill",
+    "assist",
+    "death",
+    "cs",
+    "xpm",
+    "gpm",
+    "gold",
+    "hero_leveled_up",
+    "hero_respawned",
+    "hero_buyback_info_changed",
+    "hero_boughtback",
+    "hero_health_mana_info",
+    "hero_status_effect_changed",
+    "hero_attributes_skilled",
+    "hero_ability_skilled",
+    "hero_ability_used",
+    "hero_ability_changed",
+    "hero_item_changed",
+    "hero_item_used",
+    "hero_item_consumed",
+    "hero_item_charged",
+    "match_info",
+    "roster",
+    "party",
+    "error",
+    "hero_pool",
+    "me",
+    "game"
+  ];
+
+  log("warn", "🔧 Setting required features...", features);
+
+  overwolf.games.events.setRequiredFeatures(features, (res) => {
+    if (res.success) {
+      log("ok", "✅ Features set successfully:", res.supportedFeatures);
+      setStatus("Connected to Dota 2", "ok");
+
+      // Set up event listeners after successful feature setup
+      setupEventListeners();
+    } else {
+      log("error", "❌ Failed to set features:", res);
+      log("warn", "⚠️ Retrying setRequiredFeatures in 3 seconds...");
+      setStatus("Retrying feature setup...", "warn");
+      setTimeout(setRequiredFeatures, 3000);
+    }
+  });
+}
+
+// ====== EVENT HANDLERS ======
+function setupEventListeners() {
+  log("warn", "🎧 Setting up event listeners...");
+
+  // Remove existing listeners to avoid duplicates
+  overwolf.games.events.onNewEvents.removeListener(handleNewEvents);
+  overwolf.games.events.onInfoUpdates2.removeListener(handleInfoUpdates);
+
+  // Add new listeners
+  overwolf.games.events.onNewEvents.addListener(handleNewEvents);
+  overwolf.games.events.onInfoUpdates2.addListener(handleInfoUpdates);
+
+  log("ok", "✅ Event listeners set up successfully");
+  startLogging();
+  // Test if listeners are working
+  setTimeout(() => {
+    log("warn", "🧪 Testing event listeners...");
+    log("warn", "If you see this message, the app is running but no game events are being received yet.");
+    log("warn", "Try starting a match in Dota 2 to see events!");
+  }, 5000);
+
+  // Check for info updates more frequently
+  setInterval(() => {
+    // Try to get current game info
+    overwolf.games.events.getInfo((result) => {
+      if (result.success && result.res) {
+        // Update match data from current info
+        updateMatchDataFromInfo(result.res);
+      }
+    });
+    overwolf.games.events.onNewEvents.addListener(function(info) {
+      console.log('EVENT FIRED: ' + JSON.stringify(info));
+      log("ok", "🔍 DEBUG: handleNewEvents called with:", info);
+   });
+  }, 2000);
+}
+
+function handleNewEvents(data) {
+  // if (!isLoggingActive) return;
 
   log("warn", "🔍 DEBUG: handleNewEvents called with:", data);
 
@@ -265,6 +417,26 @@ function handleNewEvents(data) {
 
     // Store event data based on type
     switch (event.name) {
+      case 'new_game':
+        log("ok", "🏁 NEW GAME STARTED!", event.data);
+        // Reset all match data for fresh start
+        resetMatchData();
+        // Set start time for new match
+        matchData.start_time = Math.floor(Date.now() / 1000);
+        // Automatically start logging when match starts
+        if (!isLoggingActive) {
+          startLogging();
+        }
+        break;
+
+      case 'game_over':
+        log("ok", "🏁 GAME OVER!", event.data);
+        // Automatically stop logging when match ends
+        if (isLoggingActive) {
+          stopLogging();
+        }
+        break;
+
       case 'match_detected':
       case 'match_state_changed':
         log("ok", "🏁 MATCH DETECTED/CHANGED!", event.data);
@@ -281,9 +453,13 @@ function handleNewEvents(data) {
         log("ok", "🏁 MATCH ENDED!", event.data);
         if (event.data) {
           matchData.duration = currentTime;
-          if (event.data.win !== undefined) {
-            matchData.radiant_win = event.data.win;
+          if (event.data.winner) {
+            matchData.radiant_win = event.data.winner === 'radiant';
           }
+        }
+        // Automatically stop logging when match ends
+        if (isLoggingActive) {
+          stopLogging();
         }
         break;
 
@@ -382,33 +558,8 @@ function handleNewEvents(data) {
   });
 }
 
-function updateMatchDataFromInfo(info) {
-  if (!isLoggingActive) return;
-
-  // Update player data from info updates
-  if (info.me) {
-    if (info.me.hero) {
-      matchData.players[0].hero_id = info.me.hero;
-    }
-    if (info.me.level) {
-      matchData.players[0].level = parseInt(info.me.level) || matchData.players[0].level;
-      updateMatchStats();
-    }
-  }
-
-  if (info.game) {
-    if (info.game.match_id) {
-      matchData.match_id = info.game.match_id;
-      matchData.players[0].match_id = info.game.match_id;
-    }
-    if (info.game.game_mode) {
-      matchData.game_mode = parseInt(info.game.game_mode) || matchData.game_mode;
-    }
-  }
-}
-
 function handleInfoUpdates(data) {
-  if (!isLoggingActive) return;
+  // if (!isLoggingActive) return;
 
   if (data && data.info) {
     log("warn", "📊 Info Update", data.info);
@@ -418,33 +569,7 @@ function handleInfoUpdates(data) {
   }
 }
 
-// ====== 2️⃣ Monitor game state changes ======
-let isGameRunning = false;
-
-function checkGameState() {
-  overwolf.games.getRunningGameInfo((info) => {
-    const gameRunning = info && info.isRunning && info.id === DOTA2_GAME_ID;
-
-    if (gameRunning && !isGameRunning) {
-      // Game just started
-      log("ok", "🎮 Dota 2 detected. Setting features...");
-      setStatus("Dota 2 detected!", "ok");
-      isGameRunning = true;
-      setRequiredFeatures();
-    } else if (!gameRunning && isGameRunning) {
-      // Game just stopped
-      log("warn", "🎮 Dota 2 stopped");
-      setStatus("Dota 2 stopped", "warn");
-      isGameRunning = false;
-    } else if (!gameRunning) {
-      // Still waiting for game
-      log("warn", "⌛ Waiting for Dota 2 to start...");
-      setStatus("Waiting for Dota 2...", "warn");
-    }
-  });
-}
-
-// ====== 6️⃣ Logging Control Functions ======
+// ====== LOGGING CONTROL ======
 function startLogging() {
   if (!isLoggingActive) {
     isLoggingActive = true;
@@ -454,8 +579,6 @@ function startLogging() {
     startMicrophoneRecording();
 
     // Update UI
-    document.getElementById('start-logging-btn').style.display = 'none';
-    document.getElementById('stop-logging-btn').style.display = 'inline-block';
     setStatus("🟢 Logging Active - Match data being tracked", "ok");
 
     log("ok", "🟢 LOGGING STARTED - All match data will now be tracked");
@@ -475,15 +598,18 @@ function stopLogging() {
     stopMicrophoneRecording();
 
     // Update UI
-    document.getElementById('start-logging-btn').style.display = 'inline-block';
-    document.getElementById('stop-logging-btn').style.display = 'none';
-    setStatus("🔴 Logging Stopped - Click Start to resume", "warn");
+    setStatus("🔴 Logging Stopped - Match ended", "warn");
 
-    log("warn", "🔴 LOGGING STOPPED - No new events will be tracked");
+    log("warn", "🔴 LOGGING STOPPED - Match ended");
+
+    // Automatically export match data after a short delay to ensure all data is finalized
+    setTimeout(() => {
+      exportMatchData();
+    }, 1000);
   }
 }
 
-// ====== 7️⃣ Microphone Recording Functions ======
+// ====== MICROPHONE RECORDING ======
 async function startMicrophoneRecording() {
   try {
     // Request microphone access
@@ -590,22 +716,7 @@ function saveAudioRecording() {
   audioChunks = [];
 }
 
-function updateMicStatus(text, className) {
-  const micStatusEl = document.getElementById('mic-status');
-  if (micStatusEl) {
-    micStatusEl.textContent = text;
-    micStatusEl.className = className;
-  }
-}
-
-// ====== 8️⃣ Clear functionality ======
-function clearAndReload() {
-  if (confirm("Are you sure you want to clear everything and reload the page? This will lose all current data.")) {
-    window.location.reload();
-  }
-}
-
-// ====== 9️⃣ Export functionality ======
+// ====== EXPORT & CLEAR ======
 function exportMatchData() {
   // Export in DotaMatch format
   const jsonString = JSON.stringify(matchData, null, 2);
@@ -625,7 +736,13 @@ function exportMatchData() {
   log("ok", `📊 Exported match data: Match ID ${matchId}, Duration: ${matchData.duration}s`);
 }
 
-// ====== 5️⃣ On load ======
+function clearAndReload() {
+  if (confirm("Are you sure you want to clear everything and reload the page? This will lose all current data.")) {
+    window.location.reload();
+  }
+}
+
+// ====== INITIALIZATION ======
 window.onload = () => {
   log("warn", "🚀 App loaded. Starting game monitoring...");
   setStatus("App loaded. Waiting for Dota 2...", "warn");
@@ -650,18 +767,10 @@ window.onload = () => {
 
   // Set up buttons
   const exportBtn = document.getElementById('export-btn');
-  const startBtn = document.getElementById('start-logging-btn');
-  const stopBtn = document.getElementById('stop-logging-btn');
   const clearBtn = document.getElementById('clear-btn');
 
   if (exportBtn) {
     exportBtn.addEventListener('click', exportMatchData);
-  }
-  if (startBtn) {
-    startBtn.addEventListener('click', startLogging);
-  }
-  if (stopBtn) {
-    stopBtn.addEventListener('click', stopLogging);
   }
   if (clearBtn) {
     clearBtn.addEventListener('click', clearAndReload);
